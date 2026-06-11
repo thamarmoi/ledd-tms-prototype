@@ -6,7 +6,9 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
-<title>GWC TMS · VTS — Prototype v12</title>
+<title>GWC TMS · VTS — Prototype v15</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <style>
 :root{
   --green:#3FAE2A; --green-d:#2f8a1f; --cyan:#00ABC7; --cyan-d:#0089a0;
@@ -2009,38 +2011,31 @@ function vReports(){
 
 /* ---- VTS: Live Map ---- */
 let selVeh=null;
-function addTruckMarkers(containerId){
-  const container=document.getElementById(containerId);
-  if(!container) return;
-  const overlay=document.createElement("div");
-  overlay.className="map-overlay";
-  container.appendChild(overlay);
-  const ST_COL={transit:"#00ABC7",delayed:"#e2473d",maint:"#f5a623",loading:"#2f86d6",idle:"#9aa7ad"};
-  VEH.forEach((v,idx)=>{
-    const marker=document.createElement("div");
-    marker.className="truck-marker";
-    marker.style.color=ST_COL[v.st];
-    marker.textContent="🚛";
-    const hash=v.id.charCodeAt(0)+v.id.charCodeAt(1);
-    const pctX=15+(hash%70);
-    const pctY=20+((hash*7)%70);
-    marker.style.left=pctX+"%";
-    marker.style.top=pctY+"%";
-    marker.title=v.id;
-    marker.onclick=(e)=>{
-      e.stopPropagation();
-      const ord=ORDERS.find(o=>o.from===v.zone);
-      const popup=document.createElement("div");
-      popup.className="truck-popup";
-      popup.style.left=Math.min(e.clientX+10,window.innerWidth-280)+"px";
-      popup.style.top=Math.min(e.clientY+10,window.innerHeight-200)+"px";
-      popup.innerHTML=`<button class="truck-popup-close" onclick="this.parentElement.remove()">×</button>
-        <b style="color:${ST_COL[v.st]};font-size:13px">${v.id}</b><br/><small>${v.drv}</small><br/><span style="color:${ST_COL[v.st]};font-weight:700;font-size:11px">${v.st.toUpperCase()}</span>${ord?`<hr style="margin:6px 0;border:none;border-top:1px solid #eee"/><b style="font-size:11px">Order:</b> ${ord.id}<br/><b style="font-size:11px">From:</b> ${ord.from}<br/><b style="font-size:11px">To:</b> ${ord.to}<br/><b style="font-size:11px">Amt:</b> ${ord.amt}`:""}`;
-      document.body.appendChild(popup);
-      selVeh=v.id;
-    };
-    overlay.appendChild(marker);
+/* Leaflet Live Map v15 */
+function genVehicleGPS(){
+  const locs=[{lat:25.2854,lng:51.5310},{lat:25.1972,lng:51.4432},{lat:25.0613,lng:51.6197},{lat:24.7136,lng:50.9910},{lat:25.3548,lng:51.1839},{lat:25.4606,lng:51.3297},{lat:25.1050,lng:51.2571},{lat:24.8252,lng:50.7669},{lat:25.3826,lng:50.9773},{lat:25.0331,lng:51.7588},{lat:25.2659,lng:51.5896},{lat:24.9764,lng:51.4328},{lat:25.1886,lng:51.6845},{lat:25.4257,lng:51.5136},{lat:24.7426,lng:50.8546},{lat:25.3195,lng:51.2086},{lat:25.0777,lng:50.6946},{lat:25.2412,lng:51.3654},{lat:25.1575,lng:51.8076},{lat:24.8543,lng:51.5473},{lat:25.3913,lng:51.6712},{lat:25.0904,lng:51.3342},{lat:25.2123,lng:50.8234},{lat:24.9445,lng:50.9445}];
+  return locs.map((loc,i)=>({...VEH[i],lat:loc.lat,lng:loc.lng,spd:Math.floor(Math.random()*80)+5,lastUpdate:new Date(Date.now()-Math.random()*600000).toLocaleTimeString()}));
+}
+const VEH_GPS=genVehicleGPS();
+let _lmap=null,_lmarkers={};
+function initLeafletMap(){
+  if(_lmap||typeof L==="undefined") return;
+  const el=document.getElementById("liveMapLeaflet");
+  if(!el) return;
+  _lmap=L.map("liveMapLeaflet",{center:[25.2854,51.5310],zoom:9,zoomControl:true});
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{attribution:"© OpenStreetMap",maxZoom:19}).addTo(_lmap);
+  const stCol={Running:"#3fae2a",Idle:"#f5a623",Offline:"#9aa7ad"};
+  const stMap={transit:"Running",delayed:"Offline",loading:"Running",maint:"Idle",idle:"Idle"};
+  const truckSVG=(st)=>`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="36" height="36"><g fill="${stCol[st]}"><path d="M1 6v9h2V9h10V6M7 14a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3M17 14a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3M17 9v5h2V9M18 6l2 2.5h1.96V6"/></g></svg>`;
+  VEH_GPS.forEach(v=>{
+    const st=stMap[v.st];
+    const icon=L.divIcon({html:truckSVG(st),className:"",iconSize:[36,36],iconAnchor:[18,18]});
+    const marker=L.marker([v.lat,v.lng],{icon}).addTo(_lmap);
+    marker.bindPopup(`<div style="min-width:260px;font-size:12px;padding:4px"><b style="color:${stCol[st]};font-size:13px">${v.id}</b><br/><b>Driver:</b> ${v.drv}<br/><b>Speed:</b> ${v.spd} km/h<br/><b>Status:</b> <span style="color:${stCol[st]};font-weight:700">${st}</span><br/><b>Last Update:</b> ${v.lastUpdate}<br/><b>Location:</b> ${v.zone}`);
+    marker.on("click",()=>{selVeh=v.id;Object.values(_lmarkers).forEach(m=>m._icon?.style.filter=="");marker._icon.style.filter="drop-shadow(0 0 15px rgba(63,174,42,0.9))";});
+    _lmarkers[v.id]=marker;
   });
+  setTimeout(()=>_lmap.invalidateSize(),100);
 }
 function vMap(){
   const stCounts={transit:0,delayed:0,loading:0,maint:0,idle:0};
@@ -2071,12 +2066,10 @@ function vMap(){
       </div>
       <div style="padding:8px 14px;font-size:11px;color:var(--mut);border-top:1px solid var(--line)">Click a vehicle or map marker to view trip</div>
     </div>
-    <!-- Google Maps with truck markers -->
-    <div id="liveMapContainer" style="flex:1;border-radius:var(--radius);overflow:hidden;border:1px solid var(--line);box-shadow:var(--shadow);position:relative">
-      <iframe title="Qatar Live Map" src="https://maps.google.com/maps?q=25.2854,51.5310&z=9&output=embed" width="100%" height="100%" style="border:0;display:block" allowfullscreen loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe>
-    </div>
+    <!-- Leaflet GPS Map -->
+    <div id="liveMapLeaflet" style="flex:1;border-radius:var(--radius);overflow:hidden;border:1px solid var(--line);box-shadow:var(--shadow)"></div>
   </div>`;
-  if(VIEW==="map") setTimeout(()=>addTruckMarkers("liveMapContainer"),800);
+  if(VIEW==="map") setTimeout(()=>initLeafletMap(),500);
 }
 function selVehicle(id){
   selVeh=id;
