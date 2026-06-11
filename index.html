@@ -2011,31 +2011,58 @@ function vReports(){
 
 /* ---- VTS: Live Map ---- */
 let selVeh=null;
-/* Leaflet Live Map v15 */
+/* Google Maps Live Map v19 */
 function genVehicleGPS(){
-  const locs=[{lat:25.2854,lng:51.5310},{lat:25.1972,lng:51.4432},{lat:25.0613,lng:51.6197},{lat:24.7136,lng:50.9910},{lat:25.3548,lng:51.1839},{lat:25.4606,lng:51.3297},{lat:25.1050,lng:51.2571},{lat:24.8252,lng:50.7669},{lat:25.3826,lng:50.9773},{lat:25.0331,lng:51.7588},{lat:25.2659,lng:51.5896},{lat:24.9764,lng:51.4328},{lat:25.1886,lng:51.6845},{lat:25.4257,lng:51.5136},{lat:24.7426,lng:50.8546},{lat:25.3195,lng:51.2086},{lat:25.0777,lng:50.6946},{lat:25.2412,lng:51.3654},{lat:25.1575,lng:51.8076},{lat:24.8543,lng:51.5473},{lat:25.3913,lng:51.6712},{lat:25.0904,lng:51.3342},{lat:25.2123,lng:50.8234},{lat:24.9445,lng:50.9445}];
+  const locs=[
+    {lat:25.2872,lng:51.5312},{lat:25.2618,lng:51.4981},{lat:25.3521,lng:51.5286},{lat:25.1656,lng:51.5324},
+    {lat:25.2050,lng:51.5708},{lat:25.2640,lng:51.4890},{lat:25.2850,lng:51.5310},{lat:25.3340,lng:51.4720},
+    {lat:25.2150,lng:51.5400},{lat:25.2900,lng:51.5250},{lat:25.1800,lng:51.5100},{lat:25.3600,lng:51.5600},
+    {lat:25.2750,lng:51.5400},{lat:25.3050,lng:51.4950},{lat:25.1950,lng:51.5550},{lat:25.2500,lng:51.5650},
+    {lat:25.3400,lng:51.5100},{lat:25.1700,lng:51.4850},{lat:25.2600,lng:51.5150},{lat:25.3200,lng:51.5450},
+    {lat:25.2350,lng:51.5300},{lat:25.3100,lng:51.5050},{lat:25.1850,lng:51.5700},{lat:25.2950,lng:51.5550}
+  ];
   return locs.map((loc,i)=>({...VEH[i],lat:loc.lat,lng:loc.lng,spd:Math.floor(Math.random()*80)+5,lastUpdate:new Date(Date.now()-Math.random()*600000).toLocaleTimeString()}));
 }
 const VEH_GPS=genVehicleGPS();
-let _lmap=null,_lmarkers={};
-function initLeafletMap(){
-  if(_lmap||typeof L==="undefined") return;
-  const el=document.getElementById("liveMapLeaflet");
-  if(!el) return;
-  _lmap=L.map("liveMapLeaflet",{center:[25.2854,51.5310],zoom:9,zoomControl:true});
-  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{attribution:"© OpenStreetMap",maxZoom:19}).addTo(_lmap);
-  const stCol={Running:"#3fae2a",Idle:"#f5a623",Offline:"#9aa7ad"};
-  const stMap={transit:"Running",delayed:"Offline",loading:"Running",maint:"Idle",idle:"Idle"};
-  const truckSVG=(st)=>`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="36" height="36"><g fill="${stCol[st]}"><path d="M1 6v9h2V9h10V6M7 14a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3M17 14a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3M17 9v5h2V9M18 6l2 2.5h1.96V6"/></g></svg>`;
+let _gmapMarkers={};
+function initGoogleMap(){
+  const el=document.getElementById("googleMapContainer");
+  if(!el||_gmapMarkers.initialized) return;
+  _gmapMarkers.initialized=true;
+  const minLat=25.1500,maxLat=25.4000,minLng=51.4500,maxLng=51.6500;
+  el.innerHTML=`<iframe src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d228652.39829935396!2d51.42716!3d25.30604!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x3e45c534ffdfe141%3A0x3d0e37fb764bfc6c!2sDoha%2C%20Qatar!5e0!3m2!1sen!2s!4v1700000000000" width="100%" height="100%" style="border:0;border-radius:var(--radius)" allowfullscreen="" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe>`;
+  const mapEl=document.getElementById("mapOverlay");
+  if(!mapEl) return;
   VEH_GPS.forEach(v=>{
-    const st=stMap[v.st];
-    const icon=L.divIcon({html:truckSVG(st),className:"",iconSize:[36,36],iconAnchor:[18,18]});
-    const marker=L.marker([v.lat,v.lng],{icon}).addTo(_lmap);
-    marker.bindPopup(`<div style="min-width:260px;font-size:12px;padding:4px"><b style="color:${stCol[st]};font-size:13px">${v.id}</b><br/><b>Driver:</b> ${v.drv}<br/><b>Speed:</b> ${v.spd} km/h<br/><b>Status:</b> <span style="color:${stCol[st]};font-weight:700">${st}</span><br/><b>Last Update:</b> ${v.lastUpdate}<br/><b>Location:</b> ${v.zone}`);
-    marker.on("click",()=>{selVeh=v.id;Object.values(_lmarkers).forEach(m=>m._icon?.style.filter=="");marker._icon.style.filter="drop-shadow(0 0 15px rgba(63,174,42,0.9))";});
-    _lmarkers[v.id]=marker;
+    const pctLng=(v.lng-minLng)/(maxLng-minLng)*100;
+    const pctLat=100-((v.lat-minLat)/(maxLat-minLat)*100);
+    const marker=document.createElement("div");
+    marker.className="truck-marker";
+    marker.id="marker_"+v.id;
+    marker.textContent="🚛";
+    marker.style.left=pctLng+"%";
+    marker.style.top=pctLat+"%";
+    const stCol={transit:"#00ABC7",delayed:"#e2473d",loading:"#2f86d6",maint:"#f5a623",idle:"#9aa7ad",running:"#3fae2a"};
+    const col=stCol[v.st]||"#9aa7ad";
+    marker.style.filter=`drop-shadow(0 2px 4px rgba(0,0,0,.4)) drop-shadow(0 0 0 3px ${col}40)`;
+    marker.onclick=(e)=>{e.stopPropagation();selVehicle(v.id);showMarkerPopup(v,pctLng,pctLat);};
+    mapEl.appendChild(marker);
+    _gmapMarkers[v.id]=marker;
   });
-  setTimeout(()=>_lmap.invalidateSize(),100);
+}
+function showMarkerPopup(v,pctLng,pctLat){
+  const existing=document.getElementById("markerPopup");
+  if(existing) existing.remove();
+  const stCol={transit:"#00ABC7",delayed:"#e2473d",loading:"#2f86d6",maint:"#f5a623",idle:"#9aa7ad",running:"#3fae2a"};
+  const col=stCol[v.st]||"#9aa7ad";
+  const popup=document.createElement("div");
+  popup.id="markerPopup";
+  popup.className="truck-popup";
+  popup.style.left=pctLng+"%";
+  popup.style.top=(pctLat-8)+"%";
+  popup.style.transform="translate(-50%,-100%)";
+  popup.innerHTML=`<button class="truck-popup-close" onclick="this.parentElement.remove()">×</button><div style="font-weight:700;color:${col};margin-bottom:6px;font-size:13px">${v.id}</div><div style="font-size:11px;margin:4px 0"><b>Driver:</b> ${v.drv}</div><div style="font-size:11px;margin:4px 0"><b>Speed:</b> <span style="color:${col};font-weight:700">${v.spd} km/h</span></div><div style="font-size:11px;margin:4px 0"><b>Status:</b> <span style="color:${col};font-weight:700">${v.st}</span></div><div style="font-size:11px;margin:4px 0"><b>Last Update:</b> ${v.lastUpdate}</div><div style="font-size:11px;margin:4px 0;color:var(--mut)"><b>Zone:</b> ${v.zone}</div>`;
+  document.body.appendChild(popup);
 }
 function vMap(){
   const stCounts={transit:0,delayed:0,loading:0,maint:0,idle:0};
@@ -2066,10 +2093,13 @@ function vMap(){
       </div>
       <div style="padding:8px 14px;font-size:11px;color:var(--mut);border-top:1px solid var(--line)">Click a vehicle or map marker to view trip</div>
     </div>
-    <!-- Leaflet GPS Map -->
-    <div id="liveMapLeaflet" style="flex:1;border-radius:var(--radius);overflow:hidden;border:1px solid var(--line);box-shadow:var(--shadow)"></div>
+    <!-- Google Maps with Overlay Markers -->
+    <div style="flex:1;border-radius:var(--radius);overflow:hidden;border:1px solid var(--line);box-shadow:var(--shadow);position:relative">
+      <div id="googleMapContainer" style="width:100%;height:100%"></div>
+      <div id="mapOverlay" style="position:absolute;top:0;left:0;width:100%;height:100%;z-index:10"></div>
+    </div>
   </div>`;
-  if(VIEW==="map") setTimeout(()=>initLeafletMap(),500);
+  if(VIEW==="map") setTimeout(()=>initGoogleMap(),500);
 }
 function selVehicle(id){
   selVeh=id;
